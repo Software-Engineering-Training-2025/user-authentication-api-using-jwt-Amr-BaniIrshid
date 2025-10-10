@@ -1,83 +1,192 @@
-# JWT Auth Server (Spring Boot + PostgreSQL)
+#  jwtAuthServer — Spring Boot JWT Authentication Service
 
-A modular authentication service built with Spring Boot that issues stateless **JWT access tokens** and **httpOnly refresh tokens (cookies)**, with support for email verification and PostgreSQL persistence. Designed to be embedded in a microservices ecosystem or used as a standalone auth backend. 
-
-## Contents Covered
-
-* Overview & features
-* Architecture (modules & data)
-* Local development (PostgreSQL, Maven, Docker)
-* Configuration (env vars)
-* Run, test, common tasks
-* Security model (JWT + refresh cookie)
-* Troubleshooting & tips
-* Roadmap / TODO
+A secure, production-ready **authentication microservice** built with **Spring Boot 3 + Spring Security 6**. 
+It implements **JWT access tokens**, **hashed refresh tokens with revoke-on-use rotation**, and an **email verification flow** enforced at the **filter chain** level.
 
 ---
 
 ## Features
 
-* **JWT access tokens** for APIs; **refresh token** stored as secure, `HttpOnly`, `SameSite=Strict` cookie with 7-day lifetime.
-* **Email verification workflow** (templated emails + verification link).
-* **PostgreSQL 16** compatible schema and configs (multiple DBs discovered locally by IDE integrations).
-* Ready for **containerization** and CI use (normalized line endings, IDE ignores, Maven wrapper). 
+- **Stateless JWT auth** with short-lived access tokens and long-lived refresh tokens
+- **Refresh token rotation (revoke-on-use)** — prevents replay of old refresh tokens
+- **Multiple concurrent sessions** per user (Chrome, Firefox, Mobile, etc.)
+- **Hashed refresh tokens stored in DB** (no plaintext at rest)
+- **Email Verification** enforced by `EmailVerificationFilter` before controller access
+- **Centralized error handling** via domain-specific exceptions (e.g., `InvalidTokenException`, `VerificationTokenExpiredException`)
+- **Clean layering** (Controller → Facade → Services → Repositories)
+- **Cookie utilities** for secure refresh token delivery (HttpOnly, Secure, SameSite=Strict)
 
 ---
 
-## Architecture
+## Project Structure (actual)
 
-### Tech Stack
-
-* **Java** (Spring Boot), **Maven** build
-* **PostgreSQL**
-* **JWT** (access) + **httpOnly cookies** (refresh)
-* Email sender (SMTP)
-
-> IntelliJ config shows module name `jwtAuthServer` and annotation processing enabled for the project. 
-
-### High-Level Flow
-
-1. **Register** → create user (unverified) → send **verification email** with signed link.
-2. **Verify** → mark user verified → allow login.
-3. **Login** → return short-lived **access JWT** + set `refresh_token` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, path `/`, max-age 7d).
-4. **Refresh** → read `refresh_token` cookie → mint new access token (and typically rotate refresh).
-5. **Logout** → clear/expire `refresh_token` cookie (and/or revoke server-side if you maintain a token store/denylist).
-
-> The cookie attributes and a 7-day max age are part of the current implementation. 
-
----
-
-## Local Development
-
-### Prerequisites
-
-* **JDK 17+**
-* **Maven 3.9+**
-* **PostgreSQL 16** running locally
-
-### Quick Start (Postgres local)
-
-```bash
-# 1) Create a database (example)
-createdb authserver
-
-# 2) Set env vars (see Configuration)
-export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/authserver
-export SPRING_DATASOURCE_USERNAME=postgres
-export SPRING_DATASOURCE_PASSWORD=postgres
-
-# 3) Run the service
-./mvnw spring-boot:run
+```
+├── com/
+├── securityProject/
+  ├── jwtAuthServer/
+    └── JwtAuthServerApplication.java
+    ├── config/
+      └── ApplicationConfiguration.java
+      └── SecurityConfiguration.java
+    ├── controller/
+      └── AuthController.java
+    ├── dto/
+      ├── login/
+        └── LoginRequest.java
+        └── LoginResponse.java
+      ├── refresh/
+        └── RefreshResponse.java
+      ├── register/
+        └── RegisterRequest.java
+        └── RegisterResponse.java
+    ├── entity/
+      └── EmailVerificationToken.java
+      └── RefreshToken.java
+      └── User.java
+    ├── enums/
+      └── Role.java
+      └── TokenType.java
+    ├── exception/
+      └── ErrorResponse.java
+      └── GlobalExceptionHandler.java
+      ├── api/
+        └── DuplicateEmailException.java
+        └── EmailNotVerifiedException.java
+        └── InternalServerException.java
+        └── InvalidCredentialsException.java
+        └── InvalidTokenException.java
+        └── InvalidVerificationTokenException.java
+        └── MissingTokenException.java
+        └── RefreshTokenRevokedException.java
+        └── TokenExpiredException.java
+        └── UserNotFoundException.java
+        └── VerificationTokenExpiredException.java
+        ├── base/
+          └── ApiException.java
+    ├── filter/
+      └── EmailVerificationFilter.java
+      └── JwtAuthFilter.java
+      └── LogoutFilter.java
+    ├── repository/
+      └── EmailVerificationTokenRepository.java
+      └── RefreshTokenRepository.java
+      └── UserRepository.java
+    ├── service/
+      ├── auth/
+        └── AuthFacade.java
+      ├── email/
+        └── EmailSenderService.java
+        └── EmailTemplateLoader.java
+        └── EmailVerificationService.java
+      ├── jwt/
+        ├── core/
+          └── JwtKeyProvider.java
+          └── JwtService.java
+          └── TokenFactory.java
+        ├── strategy/
+          └── AccessTokenStrategy.java
+          └── RefreshTokenStrategy.java
+          └── TokenStrategy.java
+      ├── login/
+        └── LoginService.java
+      ├── logout/
+        └── LogoutService.java
+      ├── refreshToken/
+        └── RefreshTokenRepoService.java
+        └── RefreshTokenService.java
+      ├── register/
+        └── RegistrationService.java
+    ├── test/
+      └── TestController.java
+    ├── util/
+      └── CookieUtil.java
+      └── TokenExtractor.java
+      └── TokenHashUtil.java
 ```
 
+> Root package: `com.securityProject.jwtAuthServer`
 
-> The project metadata includes multiple local Postgres databases (e.g., `authserver`, `jwt_security`, etc.) discovered via IDE data source inspection; you can use `authserver` for this service. 
+**Notable packages**
+
+- `config/` → `SecurityConfiguration`, `ApplicationConfiguration`
+- `controller/` → `AuthController`
+- `filter/` → `JwtAuthFilter`, `EmailVerificationFilter`, `LogoutFilter`
+- `service/auth/` → `AuthFacade` (orchestration of register/login/refresh/verify)
+- `service/register/` → `RegistrationService`
+- `service/login/` → `LoginService`
+- `service/refreshToken/` → `RefreshTokenService`, `RefreshTokenRepoService`
+- `service/email/` → `EmailVerificationService`, `EmailSenderService`, `EmailTemplateLoader`
+- `service/jwt/core|strategy` → `JwtService`, strategies for access/refresh
+- `repository/` → `UserRepository`, `RefreshTokenRepository`, `EmailVerificationTokenRepository`
+- `dto/` → feature-scoped DTOs (`login/`, `register/`, `refresh/`)
+- `entity/` → `User`, `RefreshToken`, `EmailVerificationToken`
+- `exception/api` → rich domain exceptions and base API exception types
+- `util/` → `CookieUtil`, `TokenExtractor`, `TokenHashUtil`
+- `test/` → `TestController` for quick role-based checks
 
 ---
 
-## Configuration
+## Security & Filter Chain
 
-Set these via environment variables or `application.yml`:
+Implemented in `config/SecurityConfiguration.java`:
+
+- `SessionCreationPolicy.STATELESS`
+- Request authorization rules:
+  - Permit: `/auth/**`, `/verify/**`
+  - `ROLE_ADMIN` → `/admin/**`
+  - `ROLE_USER` or `ROLE_ADMIN` → `/user/**`
+- Filters ordering:
+  1. `JwtAuthFilter` (extract/validate token, set SecurityContext)
+  2. `EmailVerificationFilter` (deny unverified users early)
+  3. `LogoutFilter` (custom logout handling)
+
+> Enforcing **email verification** as a filter makes it an invariant — no controller can accidentally bypass it.
+
+---
+
+## Token Lifecycle
+
+### 1) Login → Issue Tokens
+- Valid credentials → returns **access_token** (short TTL) and **refresh_token** (long TTL).
+- Optionally, the refresh token can be returned via a **secure HttpOnly cookie** using `CookieUtil.addRefreshToCookie()`.
+
+### 2) Refresh → Rotate & Revoke
+- Client sends **refresh token** to `/auth/refresh`.
+- Server validates the token (claims + signature), loads the user, and checks DB state.
+- **Old refresh token is revoked immediately** (revoke-on-use).
+- New **access + refresh** pair is issued.
+- If a revoked/expired/missing token is presented → mapped to a specific API exception.
+
+### 3) Email Verification
+- After registration, a verification email is sent with a token.
+- A dedicated verification endpoint (under `/verify/**`) calls `EmailVerificationService` to mark the user as verified.
+- `EmailVerificationFilter` blocks requests from unverified accounts before reaching controllers.
+
+---
+
+##  API (discovered from code)
+
+> Base path: `/auth` (see `AuthController`)
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/auth/register` | `POST` | Register new user → sends verification email |
+| `/auth/login` | `POST` | Login with email/password → returns token pair |
+| `/auth/refresh` | `POST` | Refresh access token (revoke-on-use rotation) |
+| `/verify?token=...` | `GET` | Verify email token (permitted route) |
+
+> Additionally, a `TestController` exists under `/test/**` with role-protected endpoints (e.g., `/test/admin`).
+
+**DTOs**
+- `dto/login` → `LoginRequest`, `LoginResponse`
+- `dto/register` → `RegisterRequest`, `RegisterResponse`
+- `dto/refresh` → `RefreshResponse`
+
+---
+
+## Configuration (excerpt)
+
+> `src/main/resources/application.yml` (present in your repo)
 
 ```yaml
 spring:
@@ -101,8 +210,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: 
-    password: 
+    username: yourEmail@gmail.com
+    password: appPassowrd
 
     properties:
       mail:
@@ -113,98 +222,95 @@ spring:
 
 
 jwt:
-  access-secret: 
-  refresh-secret: 
-  expiration:     
-  refresh-expiration: 
-
-
-
+  access-secret: 9m2a3m8a4m0alk218i12kf95anf82a4d1lsb4e3d2jsf3a586a7b5e82kj91h2m5
+  refresh-secret: 7b5a3d244a3e646f7a556b584e327a4d6c5b4e3d445f3a586a7b5e326e756e74
+  expiration: 900000        # 15 minutes
+  refresh-expiration: 604800000 # 7 days
 ```
 
-**Required env vars (suggested):**
-
-* `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`
-* `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`
-* `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`
+> **Production tip:** externalize secrets via environment variables (`JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, DB creds). Disable `ddl-auto: create-drop` in prod.
 
 ---
 
-## Build, Run, Test
+## Tech Stack
 
-```bash
-# Build (skip tests if needed)
-./mvnw -DskipTests package
-
-# Run
-./mvnw spring-boot:run
-
-# Unit tests
-./mvnw test
-```
-
-**IDE Notes**
-
-* `.idea`, `.iml`, `/target`, etc., are ignored; Maven wrapper and LF/CRLF settings are normalized via `.gitattributes`. 
+- **Spring Boot 3**, **Spring Security 6**
+- **PostgreSQL** + Spring Data JPA
+- **JJWT** strategies for access/refresh tokens
+- **JavaMailSender** for emails
+- **Lombok** for boilerplate reduction
 
 ---
 
-## HTTP API (baseline)
+## Quick Test Endpoints
 
-> Endpoints vary by controller package. Use this as a reference template and adjust to actual paths:
-
-```
-POST /auth/register        # body: email, password, ... → sends verification email
-GET  /auth/verify?token=   # email verification callback
-POST /auth/login           # sets refresh cookie + returns access JWT
-POST /auth/refresh         # uses refresh cookie → returns new access JWT
-POST /auth/logout          # clears refresh cookie
-GET  /test/public                  # protected (requires Bearer access JWT)
-GET  /test/user                  # protected (requires Bearer access JWT )
-GET  /test/admin                  # protected (requires Bearer access JWT && ADMIN ROLE)
-
-```
-
-**Auth headers & cookies**
-
-* Access: `Authorization: Bearer <access.jwt>`
-* Refresh: `refresh_token` cookie (HttpOnly, Secure, SameSite=Strict, Path=/, MaxAge=7d). 
+- `GET /test/admin` (requires `ROLE_ADMIN`) — verifies the full JWT + verification filter chain.
+- `GET /test/user` (if present) — for `ROLE_USER`/`ROLE_ADMIN` checks.
 
 ---
 
-## Security Model (JWT + Refresh Cookie)
+## Local Development
 
-* **Access JWT**: short-lived, carried in `Authorization` header.
-* **Refresh cookie**: **never** exposed to JS; only sent over HTTPS due to `Secure` + `HttpOnly`.
-* **Rotation** : issue a new refresh token on every refresh and **revoke** the old one (server-side store or token versioning).
-* **Email verification gate**: block login until `email_verified = true` to reduce account fraud.
-
----
-
-## Troubleshooting
-
-* **Formatter/templating exceptions** (email templates): check template placeholders and `String.format` specifiers in your template loader and email service.
-* **`SameSite=Strict` cookie not sent** on cross-site flows: during local front-end testing, consider `SameSite=Lax` or same-site domain mapping, but revert to `Strict`/`Lax` in production as needed.
-* **Missing schema**: ensure the DB exists and credentials are correct; use `ddl-auto=update` for initial dev bootstrapping, then migrate to Flyway/Liquibase.
-
----
-
-## Contributing
-
-* Use feature branches and conventional commits.
-* Add tests for business logic (token rotation, email verification).
-* Keep secrets out of the repo; use env vars or a secrets manager.
+1. Start PostgreSQL and create DB `authserver` (or adjust URL envs).
+2. Export secrets:
+   ```bash
+   export JWT_ACCESS_SECRET=...
+   export JWT_REFRESH_SECRET=...
+   export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/authserver
+   export SPRING_DATASOURCE_USERNAME=postgres
+   export SPRING_DATASOURCE_PASSWORD=yourpass
+   ```
+3. Run the app:
+   ```bash
+   ./mvnw spring-boot:run
+   ```
+4. Hit the endpoints:
+   - `POST /auth/register`
+   - `POST /auth/login`
+   - `POST /auth/refresh`
+   - `GET  /verify?token=...`
 
 ---
 
-## Roadmap / TODO
+## Design Principles
 
-* [ ] Flyway/Liquibase migrations
-* [ ] Refresh-token denylist/versioning
-* [ ] Rate limiting for auth endpoints
-* [ ] Password reset flow
-* [ ] OpenAPI (Swagger) docs
-* [ ] Dockerfile & docker-compose for one-command dev
+- **Statelessness:** no HTTP session; rely on tokens
+- **Defense-in-depth:** security invariants as filters
+- **Feature-scoped DTOs and services:** clearer ownership
+- **Explicit exceptions:** consistent error envelopes
+- **Separation of concerns:** auth domain isolated (ready to sit behind a real API gateway)
 
 ---
 
+## Roadmap Ideas
+
+- Audit log for **revoked-token reuse** attempts (security analytics)
+- `/sessions` endpoint to list/revoke active refresh tokens
+- OpenAPI/Swagger documentation
+- Profile-based mail configs and prod `ddl-auto` policy
+- Optionally, Redis cache for token blacklists (if needed)
+
+---
+
+## Mini Glossary
+
+- **Revoke-on-use rotation:** Invalidate a refresh token immediately after it’s used to get a new pair, blocking replay.
+- **EmailVerificationFilter:** A filter that denies access for unverified accounts before controllers are reached.
+- **Facade Pattern (AuthFacade):** Encapsulates multi-step flows like register → send mail → persist → issue tokens.
+- **JWT Access vs Refresh:** Access is short-lived for requests; Refresh is long-lived to obtain new access tokens.
+
+---
+
+## Summary & Key Takeaways
+
+- This service implements a **modern, secure** JWT auth flow with **hashed, revocable refresh tokens**.
+- **Email verification** is enforced at the **filter chain**, not just in controllers.
+- Architecture is **clean and extendable**: controllers are thin, business logic lives in services/facade.
+- It supports **multiple concurrent sessions** per user while remaining secure against token replay.
+- Ready to be placed **behind a dedicated API Gateway** in a microservices setup.
+
+---
+
+**Author:** Amr Bani Irshid  
+Fourth-year CS student • Backend & Security Enthusiast  
+Focus: scalable Spring Boot architectures and practical security.
