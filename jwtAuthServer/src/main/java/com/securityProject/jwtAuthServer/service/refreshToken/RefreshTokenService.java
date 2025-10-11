@@ -1,6 +1,7 @@
 package com.securityProject.jwtAuthServer.service.refreshToken;
 
 import com.securityProject.jwtAuthServer.dto.refresh.RefreshResponse;
+import com.securityProject.jwtAuthServer.dto.refresh.TokenValidationResult;
 import com.securityProject.jwtAuthServer.entity.RefreshToken;
 import com.securityProject.jwtAuthServer.entity.User;
 import com.securityProject.jwtAuthServer.enums.TokenType;
@@ -23,34 +24,24 @@ import org.springframework.stereotype.Service;
 public class RefreshTokenService {
 
     private final JwtService jwtService;
-    private final UserRepository userRepository;
     private final RefreshTokenRepoService refreshTokenService;
+    private final TokenOwnershipValidator tokenOwnershipValidator;
 
     public RefreshResponse refresh(HttpServletRequest request, HttpServletResponse response) {
         String oldToken = TokenExtractor.extractToken(request);
-        if (oldToken == null) throw new MissingTokenException();
 
-        Claims claims = jwtService.extractAllClaims(oldToken, TokenType.REFRESH);
-        String email = claims.getSubject();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserNotFoundException(email));
-
-        if (!jwtService.isTokenValid(oldToken, user, TokenType.REFRESH))
-            throw new TokenExpiredException();
-
-        boolean revoked = refreshTokenService.findByRawToken(oldToken)
-                .map(RefreshToken::isRevoked)
-                .orElse(true);
-
-        if (revoked) throw new RefreshTokenRevokedException();
+        TokenValidationResult result = tokenOwnershipValidator.validateRefreshToken(oldToken);
+        User user = result.user();
 
         refreshTokenService.revokeToken(oldToken);
 
         String newAccess = jwtService.generateToken(user, TokenType.ACCESS);
         String newRefresh = jwtService.generateToken(user, TokenType.REFRESH);
+
         refreshTokenService.createAndSave(user, newRefresh, request.getRemoteAddr());
-         CookieUtil.addRefreshToCookie(response, newRefresh);
+        CookieUtil.addRefreshToCookie(response, newRefresh);
+
         return new RefreshResponse(newAccess, newRefresh);
     }
 }
+

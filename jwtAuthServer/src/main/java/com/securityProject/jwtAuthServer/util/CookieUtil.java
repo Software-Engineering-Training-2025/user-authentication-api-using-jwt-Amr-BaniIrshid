@@ -18,4 +18,17 @@ public final class CookieUtil {
                 .build();
         response.addHeader("Set-Cookie", cookie.toString());
     }
+
+
+    public static void clearCookie(HttpServletResponse response, String name) {
+        ResponseCookie cookie = ResponseCookie.from(name, "")
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/")
+                .maxAge(0)
+                .build();
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+
 }
