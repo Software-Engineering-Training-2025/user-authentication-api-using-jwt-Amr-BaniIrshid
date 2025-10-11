@@ -10,6 +10,7 @@ import com.securityProject.jwtAuthServer.exception.api.TokenExpiredException;
 import com.securityProject.jwtAuthServer.exception.api.UserNotFoundException;
 import com.securityProject.jwtAuthServer.repository.UserRepository;
 import com.securityProject.jwtAuthServer.service.jwt.core.JwtService;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +25,7 @@ public class TokenOwnershipValidator {
     public TokenValidationResult validateRefreshToken(String rawToken) {
         if (rawToken == null) throw new MissingTokenException();
 
-        var claims = jwtService.extractAllClaims(rawToken, TokenType.REFRESH);
+        Claims claims = jwtService.extractAllClaims(rawToken, TokenType.REFRESH);
         String email = claims.getSubject();
 
         User user = userRepository.findByEmail(email)

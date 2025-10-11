@@ -23,13 +23,14 @@ public class SecurityConfiguration {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final EmailVerificationFilter emailVerificationFilter;
-    private final AuthenticationProvider authenticationProvider;
     private final LogoutFilter logoutFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**", "/verify/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
@@ -37,7 +38,6 @@ public class SecurityConfiguration {
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authenticationProvider(authenticationProvider)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(emailVerificationFilter, JwtAuthFilter.class)
                 .addFilterBefore(logoutFilter, UsernamePasswordAuthenticationFilter.class);
