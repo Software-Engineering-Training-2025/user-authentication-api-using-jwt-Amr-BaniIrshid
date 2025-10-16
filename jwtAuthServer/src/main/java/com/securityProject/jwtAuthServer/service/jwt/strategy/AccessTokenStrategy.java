@@ -21,7 +21,7 @@ public class AccessTokenStrategy implements TokenStrategy {
     private long expiration;
 
     @Override
-    public String generateToken(UserDetails userDetails) {
+    public String generateToken(UserDetails userDetails , Long id) {
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date())
@@ -52,5 +52,10 @@ public class AccessTokenStrategy implements TokenStrategy {
     @Override
     public String getTokenType() {
         return "access";
+    }
+
+    @Override
+    public long getTokenExpiration() {
+        return  expiration;
     }
 }

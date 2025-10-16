@@ -13,10 +13,12 @@ public class JwtService {
 
     private final TokenFactory tokenFactory;
 
-    public String generateToken(UserDetails userDetails, TokenType type) {
+    public String generateToken(UserDetails userDetails, TokenType type , Long id) {
         TokenStrategy strategy = tokenFactory.getStrategy(type);
-        return strategy.generateToken(userDetails);
+        return strategy.generateToken(userDetails , id);
     }
+
+
 
     public boolean isTokenValid(String token, UserDetails userDetails, TokenType type) {
         return tokenFactory.getStrategy(type).isTokenValid(token, userDetails);
@@ -28,5 +30,9 @@ public class JwtService {
 
     public String extractUsername(String token, TokenType type) {
         return tokenFactory.getStrategy(type).extractUsername(token);
+    }
+
+    public Long getExpiration(TokenType type) {
+        return tokenFactory.getStrategy(type).getTokenExpiration();
     }
 }

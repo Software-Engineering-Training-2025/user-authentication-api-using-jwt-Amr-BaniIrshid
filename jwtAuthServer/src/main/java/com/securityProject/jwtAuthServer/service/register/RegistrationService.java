@@ -7,6 +7,7 @@ import com.securityProject.jwtAuthServer.exception.api.DuplicateEmailException;
 import com.securityProject.jwtAuthServer.repository.EmailVerificationTokenRepository;
 import com.securityProject.jwtAuthServer.repository.UserRepository;
 import com.securityProject.jwtAuthServer.service.email.EmailSenderService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class RegistrationService {
     private final EmailSenderService emailSenderService;
     private final EmailVerificationTokenRepository tokenRepository;
 
+    @Transactional
     public void register(String email, String username, String password, Role role) {
         userRepository.findByEmail(email).ifPresent(u -> {
             throw new DuplicateEmailException(email);

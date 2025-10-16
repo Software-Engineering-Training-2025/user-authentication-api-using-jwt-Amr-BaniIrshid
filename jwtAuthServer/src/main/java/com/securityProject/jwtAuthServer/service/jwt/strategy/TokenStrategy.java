@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public interface TokenStrategy {
-    String generateToken(UserDetails userDetails);
+    String generateToken(UserDetails userDetails , Long id);
 
     Claims extractAllClaims(String token);
 
@@ -17,4 +17,6 @@ public interface TokenStrategy {
     default String extractUsername(String token) {
         return extractAllClaims(token).getSubject();
     }
+
+    long getTokenExpiration();
 }

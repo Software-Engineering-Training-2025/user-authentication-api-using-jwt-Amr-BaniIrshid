@@ -1,6 +1,7 @@
 package com.securityProject.jwtAuthServer.service.jwt.strategy;
 
 import com.securityProject.jwtAuthServer.service.jwt.core.JwtKeyProvider;
+import com.securityProject.jwtAuthServer.service.refreshToken.RefreshTokenRepoService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -22,9 +23,10 @@ public class RefreshTokenStrategy implements TokenStrategy {
     private long expiration;
 
     @Override
-    public String generateToken(UserDetails userDetails) {
+    public String generateToken(UserDetails userDetails ,  Long id) {
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())
+                .setId(String.valueOf(id))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expiration))
                 .claim("type", "refresh")
@@ -53,5 +55,11 @@ public class RefreshTokenStrategy implements TokenStrategy {
     @Override
     public String getTokenType() {
         return "refresh";
+    }
+
+
+    @Override
+    public long getTokenExpiration() {
+        return  expiration;
     }
 }

@@ -13,35 +13,35 @@ import com.securityProject.jwtAuthServer.repository.UserRepository;
 import com.securityProject.jwtAuthServer.service.jwt.core.JwtService;
 import com.securityProject.jwtAuthServer.util.CookieUtil;
 import com.securityProject.jwtAuthServer.util.TokenExtractor;
+import com.securityProject.jwtAuthServer.util.TokenIssuerUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 public class RefreshTokenService {
 
-    private final JwtService jwtService;
-    private final RefreshTokenRepoService refreshTokenService;
     private final TokenOwnershipValidator tokenOwnershipValidator;
+    private final RefreshTokenRepoService refreshTokenRepoService;
+    private final TokenIssuerUtil tokenIssuerUtil;
 
+    @Transactional
     public RefreshResponse refresh(HttpServletRequest request, HttpServletResponse response) {
-        String oldToken = TokenExtractor.extractToken(request);
+        String oldToken = TokenExtractor.extractFromCookie(request);
+        if (oldToken == null) throw new MissingTokenException();
 
         TokenValidationResult result = tokenOwnershipValidator.validateRefreshToken(oldToken);
         User user = result.user();
 
-        refreshTokenService.revokeToken(oldToken);
+        refreshTokenRepoService.revokeToken(result.refreshTokenId());
 
-        String newAccess = jwtService.generateToken(user, TokenType.ACCESS);
-        String newRefresh = jwtService.generateToken(user, TokenType.REFRESH);
+        String newAccessToken = tokenIssuerUtil.issueTokens(user, request.getRemoteAddr(), response);
 
-        refreshTokenService.createAndSave(user, newRefresh, request.getRemoteAddr());
-        CookieUtil.addRefreshToCookie(response, newRefresh);
-
-        return new RefreshResponse(newAccess, newRefresh);
+        return new RefreshResponse(newAccessToken);
     }
 }
-

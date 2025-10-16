@@ -2,6 +2,7 @@ package com.securityProject.jwtAuthServer.service.login;
 
 import com.securityProject.jwtAuthServer.dto.login.LoginRequest;
 import com.securityProject.jwtAuthServer.dto.login.LoginResponse;
+import com.securityProject.jwtAuthServer.entity.RefreshToken;
 import com.securityProject.jwtAuthServer.entity.User;
 import com.securityProject.jwtAuthServer.enums.TokenType;
 import com.securityProject.jwtAuthServer.exception.api.EmailNotVerifiedException;
@@ -11,7 +12,9 @@ import com.securityProject.jwtAuthServer.repository.UserRepository;
 import com.securityProject.jwtAuthServer.service.jwt.core.JwtService;
 import com.securityProject.jwtAuthServer.service.refreshToken.RefreshTokenRepoService;
 import com.securityProject.jwtAuthServer.util.CookieUtil;
+import com.securityProject.jwtAuthServer.util.TokenIssuerUtil;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,22 +25,18 @@ public class LoginService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService;
-    private final RefreshTokenRepoService refreshTokenRepoService;
+    private final TokenIssuerUtil tokenIssuerUtil;
 
+    @Transactional
     public LoginResponse login(LoginRequest request, String deviceIp, HttpServletResponse response) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new UserNotFoundException(request.getEmail()));
 
         validateCredentials(user, request);
 
-        String accessToken  = jwtService.generateToken(user, TokenType.ACCESS);
-        String refreshToken = jwtService.generateToken(user, TokenType.REFRESH);
+        String accessToken = tokenIssuerUtil.issueTokens(user, deviceIp, response);
 
-        refreshTokenRepoService.createAndSave(user, refreshToken, deviceIp);
-        CookieUtil.addRefreshToCookie(response, refreshToken);
-
-        return new LoginResponse(accessToken, refreshToken, "Login successful");
+        return new LoginResponse(accessToken, "Login successful");
     }
 
     private void validateCredentials(User user, LoginRequest req) {
@@ -45,5 +44,4 @@ public class LoginService {
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword()))
             throw new InvalidCredentialsException();
     }
-
 }

@@ -27,8 +27,8 @@ public class LogoutService {
     private final RefreshTokenRepoService refreshTokenRepoService;
 
     public void logout(HttpServletRequest request) {
-        String jwt = TokenExtractor.extractToken(request);
-        TokenValidationResult result = tokenOwnershipValidator.validateRefreshToken(jwt);
+        String oldToken = TokenExtractor.extractFromCookie(request);
+        TokenValidationResult result = tokenOwnershipValidator.validateRefreshToken(oldToken);
 
         User user = result.user();
         RefreshToken stored = result.refreshToken();

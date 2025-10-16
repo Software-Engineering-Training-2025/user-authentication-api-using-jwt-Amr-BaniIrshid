@@ -6,6 +6,7 @@ import com.securityProject.jwtAuthServer.exception.api.InvalidVerificationTokenE
 import com.securityProject.jwtAuthServer.exception.api.VerificationTokenExpiredException;
 import com.securityProject.jwtAuthServer.repository.EmailVerificationTokenRepository;
 import com.securityProject.jwtAuthServer.repository.UserRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +19,8 @@ public class EmailVerificationService {
     private final UserRepository userRepository;
     private final EmailVerificationTokenRepository tokenRepository;
 
+
+    @Transactional
     public String verify(String token) {
         EmailVerificationToken verificationToken= tokenRepository.findByToken(token)
                 .orElseThrow(InvalidVerificationTokenException::new);
